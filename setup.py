@@ -88,7 +88,20 @@ def get_version():
 def make_cuda_ext(name, module, sources, sources_cuda=[]):
 
     define_macros = []
-    extra_compile_args = {'cxx': []}
+    extra_compile_args = {
+        'cxx': ['-std=c++14'],
+        'nvcc': [
+            '-D__CUDA_NO_HALF_OPERATORS__',
+            '-D__CUDA_NO_HALF_CONVERSIONS__',
+            '-D__CUDA_NO_HALF2_OPERATORS__',
+            '-std=c++14',
+            '-Xcompiler=-fPIC',
+            '-gencode=arch=compute_89,code=sm_89',
+            '-gencode=arch=compute_80,code=sm_80',
+            '-gencode=arch=compute_86,code=sm_86',
+            '-gencode=arch=compute_70,code=compute_70'
+        ]
+    }
 
     if torch.cuda.is_available() or os.getenv('FORCE_CUDA', '0') == '1':
         define_macros += [('WITH_CUDA', None)]

@@ -1,7 +1,10 @@
+#include <ATen/cuda/Exceptions.h>
 #include <ATen/ATen.h>
 #include <ATen/cuda/CUDAContext.h>
-#include <THC/THCAtomics.cuh>
+#include <ATen/cuda/Atomic.cuh>
+#include <c10/cuda/CUDACachingAllocator.h>
 
+#define CEIL_DIV(a, b) ((a) + (b) - 1) / (b)
 #define CUDA_1D_KERNEL_LOOP(i, n)                            \
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < n; \
        i += blockDim.x * gridDim.x)
@@ -69,7 +72,7 @@ int MaskedIm2colForwardLaucher(const at::Tensor bottom_data, const int height,
                 output_size, bottom_data_, height, width, kernel_h, kernel_w,
                 pad_h, pad_w, mask_h_idx_, mask_w_idx_, mask_cnt, top_data_);
       }));
-  THCudaCheck(cudaGetLastError());
+  AT_CUDA_CHECK(cudaGetLastError());
   return 1;
 }
 
@@ -109,6 +112,6 @@ int MaskedCol2imForwardLaucher(const at::Tensor bottom_data, const int height,
                 output_size, bottom_data_, height, width, channels, mask_h_idx_,
                 mask_w_idx_, mask_cnt, top_data_);
       }));
-  THCudaCheck(cudaGetLastError());
+  AT_CUDA_CHECK(cudaGetLastError());
   return 1;
 }

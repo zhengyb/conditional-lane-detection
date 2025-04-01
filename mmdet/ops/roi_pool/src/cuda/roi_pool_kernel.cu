@@ -1,7 +1,10 @@
+#include <ATen/cuda/Exceptions.h>
 #include <ATen/ATen.h>
 #include <ATen/cuda/CUDAContext.h>
-#include <THC/THCAtomics.cuh>
+#include <ATen/cuda/Atomic.cuh>
+#include <c10/cuda/CUDACachingAllocator.h>
 
+#define CEIL_DIV(a, b) ((a) + (b) - 1) / (b)
 #define CUDA_1D_KERNEL_LOOP(i, n)                            \
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < n; \
        i += blockDim.x * gridDim.x)
@@ -98,7 +101,7 @@ int ROIPoolForwardLaucher(const at::Tensor features, const at::Tensor rois,
             output_size, bottom_data, rois_data, scalar_t(spatial_scale),
             channels, height, width, pooled_h, pooled_w, top_data, argmax_data);
       }));
-  THCudaCheck(cudaGetLastError());
+  AT_CUDA_CHECK(cudaGetLastError());
   return 1;
 }
 template <typename scalar_t>
@@ -117,7 +120,7 @@ __global__ void ROIPoolBackward(const int nthreads, const scalar_t *top_diff,
     int bottom_index = argmax_data[(n * channels + c) * pooled_h * pooled_w +
                                    ph * pooled_w + pw];
     if (bottom_index != -1) {
-      atomicAdd(bottom_diff + (roi_batch_ind * channels + c) * height * width +
+      gpuAtomicAdd(bottom_diff + (roi_batch_ind * channels + c) * height * width +
                     bottom_index,
                 top_diff[index]);
     }
@@ -146,6 +149,6 @@ int ROIPoolBackwardLaucher(const at::Tensor top_grad, const at::Tensor rois,
             scalar_t(spatial_scale), channels, height, width, pooled_h,
             pooled_w, bottom_diff);
       }));
-  THCudaCheck(cudaGetLastError());
+  AT_CUDA_CHECK(cudaGetLastError());
   return 1;
 }

@@ -1,8 +1,12 @@
+#include <ATen/cuda/Exceptions.h>
 #include <ATen/ATen.h>
-#include <THC/THCAtomics.cuh>
+#include <ATen/cuda/CUDAContext.h>
+#include <ATen/cuda/Atomic.cuh>
+#include <c10/cuda/CUDACachingAllocator.h>
 
 using namespace at;  // temporal fix for pytorch<=0.4.1 (see #9848)
 
+#define CEIL_DIV(a, b) ((a) + (b) - 1) / (b)
 #define CUDA_1D_KERNEL_LOOP(i, n)                            \
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < n; \
        i += blockDim.x * gridDim.x)
@@ -133,9 +137,9 @@ __global__ void CARAFENAIVEBackward(
             Loc2Index(n, c, iy, ix, channels, down_height, down_width);
         int mask_index =
             Loc2Index(n, mask_c, ph, pw, mask_channels, height, width);
-        atomicAdd(bottom_diff + feat_index,
+        gpuAtomicAdd(bottom_diff + feat_index,
                   bottom_masks[mask_index] * top_diff[index]);
-        atomicAdd(mask_diff + mask_index,
+        gpuAtomicAdd(mask_diff + mask_index,
                   bottom_data[feat_index] * top_diff[index]);
       }
     }

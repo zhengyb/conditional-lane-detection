@@ -1,3 +1,4 @@
+#include <ATen/cuda/Exceptions.h>
 /*!
  ******************* BEGIN Caffe Copyright Notice and Disclaimer ****************
  *
@@ -62,7 +63,10 @@
 
 #include <ATen/ATen.h>
 #include <ATen/cuda/CUDAContext.h>
-#include <THC/THCAtomics.cuh>
+#include <ATen/ATen.h>
+#include <ATen/cuda/CUDAContext.h>
+#include <ATen/cuda/Atomic.cuh>
+#include <c10/cuda/CUDACachingAllocator.h>
 #include <stdio.h>
 #include <math.h>
 #include <float.h>
@@ -327,7 +331,7 @@ __global__ void deformable_col2im_gpu_kernel(
         {
           int cur_bottom_grad_pos = ((b * channels + c) * height + cur_h + dy) * width + cur_w + dx;
           scalar_t weight = get_gradient_weight(cur_inv_h_data, cur_inv_w_data, cur_h + dy, cur_w + dx, height, width);
-          atomicAdd(grad_im + cur_bottom_grad_pos, weight * cur_top_grad);
+          gpuAtomicAdd(grad_im + cur_bottom_grad_pos, weight * cur_top_grad);
         }
       }
     }
@@ -685,7 +689,7 @@ __global__ void modulated_deformable_col2im_gpu_kernel(const int n,
         {
           int cur_bottom_grad_pos = ((b * channels + c) * height + cur_h + dy) * width + cur_w + dx;
           scalar_t weight = dmcn_get_gradient_weight(cur_inv_h_data, cur_inv_w_data, cur_h + dy, cur_w + dx, height, width);
-          atomicAdd(grad_im + cur_bottom_grad_pos, weight * cur_top_grad);
+          gpuAtomicAdd(grad_im + cur_bottom_grad_pos, weight * cur_top_grad);
         }
       }
     }

@@ -1,13 +1,17 @@
+#include <ATen/cuda/Exceptions.h>
 #include <ATen/ATen.h>
+#include <ATen/cuda/CUDAContext.h>
+#include <ATen/cuda/Atomic.cuh>
+#include <c10/cuda/CUDACachingAllocator.h>
 #include <ATen/TensorUtils.h>
 #include <ATen/Utils.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <ATen/cuda/CUDAApplyUtils.cuh>
-#include <THC/THCAtomics.cuh>
 #include <cmath>
 
 using namespace at;
 
+#define CEIL_DIV(a, b) ((a) + (b) - 1) / (b)
 #define CUDA_1D_KERNEL_LOOP(i, n)                            \
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < n; \
        i += blockDim.x * gridDim.x)

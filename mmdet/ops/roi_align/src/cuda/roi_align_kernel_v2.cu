@@ -1,3 +1,4 @@
+#include <ATen/cuda/Exceptions.h>
 // Modified from
 // https://github.com/facebookresearch/detectron2/tree/master/detectron2/layers/csrc/ROIAlign
 // Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
@@ -6,8 +7,11 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <c10/cuda/CUDAGuard.h>
 #include <ATen/cuda/CUDAApplyUtils.cuh>
+#include <ATen/cuda/Atomic.cuh>
+#include <c10/cuda/CUDACachingAllocator.h>
 
 // TODO make it in a common file
+#define CEIL_DIV(a, b) ((a) + (b) - 1) / (b)
 #define CUDA_1D_KERNEL_LOOP(i, n)                            \
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < n; \
        i += blockDim.x * gridDim.x)
@@ -248,13 +252,13 @@ __global__ void RoIAlignBackwardFeatureV2(
         T g4 = top_diff_this_bin * w4 / count;
 
         if (x_low >= 0 && x_high >= 0 && y_low >= 0 && y_high >= 0) {
-          atomicAdd(offset_bottom_diff + y_low * width + x_low,
+          gpuAtomicAdd(offset_bottom_diff + y_low * width + x_low,
                     static_cast<T>(g1));
-          atomicAdd(offset_bottom_diff + y_low * width + x_high,
+          gpuAtomicAdd(offset_bottom_diff + y_low * width + x_high,
                     static_cast<T>(g2));
-          atomicAdd(offset_bottom_diff + y_high * width + x_low,
+          gpuAtomicAdd(offset_bottom_diff + y_high * width + x_low,
                     static_cast<T>(g3));
-          atomicAdd(offset_bottom_diff + y_high * width + x_high,
+          gpuAtomicAdd(offset_bottom_diff + y_high * width + x_high,
                     static_cast<T>(g4));
         }  // if
       }    // ix

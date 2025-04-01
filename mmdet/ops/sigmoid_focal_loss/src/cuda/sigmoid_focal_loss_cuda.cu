@@ -1,3 +1,4 @@
+#include <ATen/cuda/Exceptions.h>
 // modified from
 // https://github.com/facebookresearch/maskrcnn-benchmark/blob/master/maskrcnn_benchmark/csrc/cuda/SigmoidFocalLoss_cuda.cu
 
@@ -8,17 +9,19 @@
 // cyfu@cs.unc.edu
 #include <ATen/ATen.h>
 #include <ATen/cuda/CUDAContext.h>
-
-#include <THC/THC.h>
-#include <THC/THCAtomics.cuh>
-#include <THC/THCDeviceUtils.cuh>
+#include <ATen/cuda/Atomic.cuh>
+#include <c10/cuda/CUDACachingAllocator.h>
 
 #include <cfloat>
 
 // TODO make it in a common file
+#define CEIL_DIV(a, b) ((a) + (b) - 1) / (b)
 #define CUDA_1D_KERNEL_LOOP(i, n)                            \
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < n; \
        i += blockDim.x * gridDim.x)
+
+
+int const threadsPerBlock = sizeof(unsigned long long) * 8;
 
 template <typename scalar_t>
 __global__ void SigmoidFocalLossForward(const int nthreads,
@@ -109,12 +112,11 @@ at::Tensor SigmoidFocalLoss_forward_cuda(const at::Tensor &logits,
   auto losses = at::empty({num_samples, logits.size(1)}, logits.options());
   auto losses_size = num_samples * logits.size(1);
 
-  dim3 grid(
-      std::min(THCCeilDiv((int64_t)losses_size, (int64_t)512), (int64_t)4096));
+  dim3 grid(std::min<int64_t>(CEIL_DIV(losses_size, 512), 4096));
   dim3 block(512);
 
   if (losses.numel() == 0) {
-    THCudaCheck(cudaGetLastError());
+    AT_CUDA_CHECK(cudaGetLastError());
     return losses;
   }
 
@@ -125,7 +127,7 @@ at::Tensor SigmoidFocalLoss_forward_cuda(const at::Tensor &logits,
             targets.contiguous().data_ptr<int64_t>(), num_classes, gamma, alpha,
             num_samples, losses.data_ptr<scalar_t>());
       });
-  THCudaCheck(cudaGetLastError());
+  AT_CUDA_CHECK(cudaGetLastError());
   return losses;
 }
 
@@ -148,12 +150,11 @@ at::Tensor SigmoidFocalLoss_backward_cuda(const at::Tensor &logits,
   auto d_logits = at::zeros({num_samples, num_classes}, logits.options());
   auto d_logits_size = num_samples * logits.size(1);
 
-  dim3 grid(std::min(THCCeilDiv((int64_t)d_logits_size, (int64_t)512),
-                     (int64_t)4096));
+  dim3 grid(std::min<int64_t>(CEIL_DIV(d_logits_size, 512), 4096));
   dim3 block(512);
 
   if (d_logits.numel() == 0) {
-    THCudaCheck(cudaGetLastError());
+    AT_CUDA_CHECK(cudaGetLastError());
     return d_logits;
   }
 
@@ -166,6 +167,6 @@ at::Tensor SigmoidFocalLoss_backward_cuda(const at::Tensor &logits,
             num_samples, d_logits.data_ptr<scalar_t>());
       });
 
-  THCudaCheck(cudaGetLastError());
+  AT_CUDA_CHECK(cudaGetLastError());
   return d_logits;
 }

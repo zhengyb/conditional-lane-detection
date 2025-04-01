@@ -1,7 +1,10 @@
+#include <ATen/cuda/Exceptions.h>
 #include <ATen/ATen.h>
 #include <ATen/cuda/CUDAContext.h>
-#include <THC/THCAtomics.cuh>
+#include <ATen/cuda/Atomic.cuh>
+#include <c10/cuda/CUDACachingAllocator.h>
 
+#define CEIL_DIV(a, b) ((a) + (b) - 1) / (b)
 #define CUDA_1D_KERNEL_LOOP(i, n)                            \
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < n; \
        i += blockDim.x * gridDim.x)
@@ -136,7 +139,7 @@ int ROIAlignForwardLaucher(const at::Tensor features, const at::Tensor rois,
                 sample_num, channels, height, width, pooled_height,
                 pooled_width, top_data);
       }));
-  THCudaCheck(cudaGetLastError());
+  AT_CUDA_CHECK(cudaGetLastError());
   return 1;
 }
 
@@ -243,10 +246,10 @@ __global__ void ROIAlignBackwardV1(
         scalar_t g3 = offset_top_diff * w3 / count;
         scalar_t g4 = offset_top_diff * w4 / count;
         if (x_low >= 0 && x_high >= 0 && y_low >= 0 && y_high >= 0) {
-          atomicAdd(offset_bottom_diff + y_low * width + x_low, g1);
-          atomicAdd(offset_bottom_diff + y_low * width + x_high, g2);
-          atomicAdd(offset_bottom_diff + y_high * width + x_low, g3);
-          atomicAdd(offset_bottom_diff + y_high * width + x_high, g4);
+          gpuAtomicAdd(offset_bottom_diff + y_low * width + x_low, g1);
+          gpuAtomicAdd(offset_bottom_diff + y_low * width + x_high, g2);
+          gpuAtomicAdd(offset_bottom_diff + y_high * width + x_low, g3);
+          gpuAtomicAdd(offset_bottom_diff + y_high * width + x_high, g4);
         }
       }
     }
@@ -278,6 +281,6 @@ int ROIAlignBackwardLaucher(const at::Tensor top_grad, const at::Tensor rois,
                 channels, height, width, pooled_height, pooled_width,
                 bottom_diff);
       }));
-  THCudaCheck(cudaGetLastError());
+  AT_CUDA_CHECK(cudaGetLastError());
   return 1;
 }
